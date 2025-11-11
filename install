@@ -1,0 +1,53 @@
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" > /etc/apt/sources.list.d/elastic-7.x.list
+apt-get update 
+apt-get install -y elasticsearch=7.17.18
+echo "network.host: 0.0.0.0" | sudo tee -a /etc/elasticsearch/elasticsearch.yml
+echo "discovery.type: single-node" | sudo tee -a /etc/elasticsearch/elasticsearch.yml
+systemctl daemon-reload
+systemctl enable elasticsearch.service
+systemctl start elasticsearch.service
+systemctl status elasticsearch.service
+
+curl -L -O https://artifacts.elastic.co/downloads/apm-server/apm-server-7.17.18-amd64.deb
+sudo dpkg -i apm-server-7.17.18-amd64.deb
+sudo sed -i 's/host: "localhost:8200"/host: "0.0.0.0:8200"/' /etc/apm-server/apm-server.yml
+sudo service apm-server start
+
+
+# download profiler
+wget https://github.com/elastic/apm-agent-dotnet/releases/download/v1.26.0/elastic_apm_profiler_1.26.0-linux-x64.zip -O /tmp/elastic_apm_profiler.zip
+apt install unzip -y
+unzip /tmp/elastic_apm_profiler.zip -d /opt/elastic_apm_profiler
+sudo mkdir -p /var/log/weatherapi
+sudo chmod 777 /var/log/weatherapi 
+sudo chmod 777 /opt/elastic_apm_profiler
+
+# create service
+SERVICE_NAME="weatherapi"
+APP_DIR="/root/publish"
+APP_EXEC="weatherapi.dll"
+APP_URLS="http://*:5000"
+LOG_DIR="/var/log/weatherapi"
+echo "[Unit]
+Description=$SERVICE_NAME
+
+[Service]
+Environment=\"CORECLR_ENABLE_PROFILING=1\"
+Environment=\"CORECLR_PROFILER={FA65FE15-F085-4681-9B20-95E04F6C03CC}\"
+Environment=\"CORECLR_PROFILER_PATH=/opt/elastic_apm_profiler/libelastic_apm_profiler.so\"
+Environment=\"ELASTIC_APM_PROFILER_HOME=/opt/elastic_apm_profiler\"
+Environment=\"ELASTIC_APM_PROFILER_INTEGRATIONS=/opt/elastic_apm_profiler/integrations.yml\"
+Environment=\"ELASTIC_APM_SERVICE_NAME=test\"
+Environment=\"ELASTIC_APM_SERVER_URLS=http://35.175.110.127:8200/\"
+Environment=\"ELASTIC_APM_ENVIRONMENT=production\"
+Environment=\"ELASTIC_APM_PROFILER_LOG=trace\" 
+Environment=\"ELASTIC_APM_PROFILER_LOG_DIR=$LOG_DIR\" 
+
+WorkingDirectory=$APP_DIR
+ExecStart=/usr/bin/dotnet $APP_EXEC --urls=\"$APP_URLS\"
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target" > /etc/systemd/system/weatherapi.service
