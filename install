@@ -51,3 +51,19 @@ RestartSec=10
 
 [Install]
 WantedBy=multi-user.target" > /etc/systemd/system/weatherapi.service
+
+
+
+wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | apt-key add -
+echo "deb https://artifacts.elastic.co/packages/7.x/apt stable main" > /etc/apt/sources.list.d/elastic-7.x.list
+apt-get update 
+apt-get install -y kibana=7.17.18
+#echo "elasticsearch.hosts: [\"http://es-alb-1273654514.us-east-1.elb.amazonaws.com\"]" | sudo tee -a /etc/kibana/kibana.yml
+echo "server.host: \"0.0.0.0\"" | sudo tee -a /etc/kibana/kibana.yml
+echo "server.port: 5601" | sudo tee -a /etc/kibana/kibana.yml
+systemctl daemon-reload
+systemctl enable kibana.service
+systemctl start kibana.service
+systemctl status kibana.service
+
+http://3.238.218.58:5601/
